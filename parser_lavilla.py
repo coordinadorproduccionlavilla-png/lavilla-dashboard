@@ -260,7 +260,9 @@ def parse_produccion(text):
     # --- PASO 2: inventariar lotes-base en PT por (pdn_lote, fam, sede) ---
     # Necesario para repartir el patron proporcionalmente entre días de empaque
     pt_start = text.find('Entrega PT FECHA DE EMPAQUE')
-    pt_raw = text[pt_start:167858]  # corte antes de basura #REF/#N/A
+    # Corte dinámico: buscar el fin real de la sección PT
+    pt_end = text.find("Parametros control Producci", pt_start)
+    pt_raw = text[pt_start:pt_end]  # corte antes de basura #REF/#N/A
 
     NUM_FIELD = r'(?:\\+"[\d,]+\.\d+\\+"|"[\d,]+\.\d+"|[\d.]+)'
     ROW_RE = re.compile(
