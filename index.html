@@ -830,181 +830,16 @@ document.addEventListener("DOMContentLoaded",function(){
   applyF();
 });
 
-// ── REPORTE SEMANAL ───────────────────────────────────────────────────────────
+// ── REPORTE SEMANAL ──────────────────────────────────────────────────────────
 var CONSOLIDADOS={
   'MANGUERA KILO':['MANGUERA KILO LV','MANGUERA KILO SV'],
   'MANGUERA DELI':['MANGUERA DELI LV','MANGUERA DELI SV'],
   'SCHON PROMOCION':['SCHON PROMOCION LV','SCHON PROMOCION SV']
 };
-var FAM_ORDEN=['MANGUERA KILO','MANGUERA DELI','SCHON PROMOCION',
-               'CHORIZO LV','SALCHICHA LV','MORTADELA LV','MORTADELA SV',
-               'SCHON POLLO SV','SCHON CERVECERO SV','SCHON ECONOMICO SV','SEVILLANO SV'];
-
-function getMonday(d){
-  var dt=new Date(d); var day=dt.getDay();
-  var diff=dt.getDate()-(day===0?6:day-1);
-  dt.setDate(diff); return dt.toISOString().slice(0,10);
-}
-function addDays(d,n){var dt=new Date(d); dt.setDate(dt.getDate()+n); return dt.toISOString().slice(0,10);}
-function fmtDate(d){var p=d.split('-'); return p[2]+'/'+p[1];}
-function fmtKg(v){return v===0?'—':(v<0?'-':'')+Math.abs(v).toLocaleString('es-CO',{minimumFractionDigits:1,maximumFractionDigits:1})+' kg';}
-
-function buildSemana(){
-  var DATA=JSON.parse(document.getElementById('dash-data').textContent);
-  var recs=DATA.records;
-  if(!recs||!recs.length) return;
-
-  // Detectar semanas disponibles
-  var semanas={};
-  recs.forEach(function(r){
-    var mon=getMonday(r.fecha);
-    if(!semanas[mon]) semanas[mon]=[];
-    semanas[mon].push(r);
-  });
-  var semList=Object.keys(semanas).sort().reverse();
-
-  // Selector de semana
-  var sel=document.getElementById('sem-selector');
-  sel.innerHTML='';
-  semList.slice(0,8).forEach(function(mon,i){
-    var sat=addDays(mon,5);
-    var btn=document.createElement('button');
-    btn.className='tab'+(i===0?' on':'');
-    btn.textContent=fmtDate(mon)+' – '+fmtDate(sat);
-    btn.onclick=(function(m){return function(){
-      document.querySelectorAll('#sem-selector .tab').forEach(function(b){b.classList.remove('on');});
-      this.classList.add('on');
-      renderSemana(semanas[m],m);
-    };})(mon);
-    sel.appendChild(btn);
-  });
-
-  // Renderizar la semana más reciente
-  if(semList.length) renderSemana(semanas[semList[0]],semList[0]);
-}
-
-function renderSemana(recs,mon){
-  var dias=[0,1,2,3,4,5].map(function(n){return addDays(mon,n);});
-  var diaNoms=['Lun','Mar','Mié','Jue','Vie','Sáb'];
-
-  // Agregar por (fam+sede) y día
-  var data={};
-  recs.forEach(function(r){
-    var key=r.fam+' '+r.sede;
-    if(!data[key]) data[key]={patron:0,real:0,dias:{}};
-    data[key].patron+=r.patron;
-    data[key].real+=r.real;
-    data[key].dias[r.fecha]=(data[key].dias[r.fecha]||0)+r.real;
-  });
-
-  // Construir filas consolidadas
-  var filas=[];
-  var procesadas=new Set();
-
-  FAM_ORDEN.forEach(function(fk){
-    var parts=fk.split(' ');
-    var sede=parts[parts.length-1];
-    var fam=parts.slice(0,-1).join(' ');
-    var esConsolidado=CONSOLIDADOS[fam];
-
-    if(esConsolidado){
-      if(procesadas.has(fam)) return;
-      procesadas.add(fam);
-      var row={label:fam+' (LV+SV)',patron:0,real:0,dias:{},tipo:'consolidado'};
-      esConsolidado.forEach(function(k){
-        if(data[k]){
-          row.patron+=data[k].patron;
-          row.real+=data[k].real;
-          Object.keys(data[k].dias).forEach(function(d){
-            row.dias[d]=(row.dias[d]||0)+data[k].dias[d];
-          });
-        }
-      });
-      if(row.patron>0||row.real>0) filas.push(row);
-    } else {
-      var key=fam+' '+sede;
-      if(data[key]){
-        filas.push({label:fam+' '+sede,patron:data[key].patron,real:data[key].real,
-                    dias:data[key].dias,tipo:'individual'});
-      }
-    }
-  });
-
-  // Renderizar tabla
-  var sat=addDays(mon,5);
-  var html='<div style="overflow-x:auto">';
-  html+='<table style="width:100%;border-collapse:collapse;font-size:13px">';
-  html+='<thead><tr>';
-  html+='<th style="text-align:left;padding:10px 12px;border-bottom:2px solid var(--brd);color:var(--mut);font-size:11px;letter-spacing:1px;text-transform:uppercase">Producto</th>';
-  html+='<th style="padding:10px 8px;border-bottom:2px solid var(--brd);color:var(--mut);font-size:11px;text-align:right">Patrón</th>';
-  html+='<th style="padding:10px 8px;border-bottom:2px solid var(--brd);color:var(--mut);font-size:11px;text-align:right">Real empacado</th>';
-  html+='<th style="padding:10px 8px;border-bottom:2px solid var(--brd);color:var(--mut);font-size:11px;text-align:right">Merma%</th>';
-  dias.forEach(function(d,i){
-    html+='<th style="padding:10px 8px;border-bottom:2px solid var(--brd);color:var(--mut);font-size:11px;text-align:right">'+diaNoms[i]+'<br><span style=\'font-size:10px\'>'+fmtDate(d)+'</span></th>';
-  });
-  html+='<th style="padding:10px 8px;border-bottom:2px solid var(--brd);color:var(--mut);font-size:11px;text-align:right">Balance</th>';
-  html+='</tr></thead><tbody>';
-
-  var tot_patron=0,tot_real=0;
-
-  filas.forEach(function(row){
-    var mr=row.patron>0?((row.patron-row.real)/row.patron*100):0;
-    var bal=row.real-row.patron;
-    var mrCol=mr>0?'var(--yel)':(mr<-5?'var(--red)':'var(--grn)');
-    var sem=mr>0?'🟡':(mr>=-5?'🟢':'🔴');
-    var bgRow=row.tipo==='consolidado'?'rgba(200,169,110,.06)':'transparent';
-    tot_patron+=row.patron; tot_real+=row.real;
-
-    html+='<tr style="background:'+bgRow+';border-bottom:1px solid rgba(255,255,255,.04)">';
-    html+='<td style="padding:10px 12px;font-weight:'+(row.tipo==='consolidado'?'600':'400')+'">'+sem+' '+row.label+'</td>';
-    html+='<td style="padding:10px 8px;text-align:right;color:var(--mut);font-family:monospace">'+fmtKg(row.patron)+'</td>';
-    html+='<td style="padding:10px 8px;text-align:right;font-family:monospace;font-weight:600">'+fmtKg(row.real)+'</td>';
-    html+='<td style="padding:10px 8px;text-align:right;font-family:monospace;color:'+mrCol+'">'+(mr>0?'+':'')+mr.toFixed(1)+'%</td>';
-    dias.forEach(function(d){
-      var v=row.dias[d]||0;
-      html+='<td style="padding:10px 8px;text-align:right;font-family:monospace;color:'+(v>0?'var(--text)':'var(--mut)')+'">'+( v>0?fmtKg(v):'—')+'</td>';
-    });
-    var balCol=bal>=0?'var(--grn)':'var(--mut)';
-    html+='<td style="padding:10px 8px;text-align:right;font-family:monospace;color:'+balCol+'">'+(bal>=0?'+':'')+fmtKg(bal)+'</td>';
-    html+='</tr>';
-  });
-
-  // Fila total
-  var tot_mr=tot_patron>0?((tot_patron-tot_real)/tot_patron*100):0;
-  html+='<tr style="border-top:2px solid var(--brd);font-weight:700">';
-  html+='<td style="padding:12px 12px">TOTAL SEMANA</td>';
-  html+='<td style="padding:12px 8px;text-align:right;font-family:monospace">'+fmtKg(tot_patron)+'</td>';
-  html+='<td style="padding:12px 8px;text-align:right;font-family:monospace">'+fmtKg(tot_real)+'</td>';
-  html+='<td style="padding:12px 8px;text-align:right;font-family:monospace;color:'+(tot_mr>0?'var(--yel)':'var(--grn)')+'">'+tot_mr.toFixed(1)+'%</td>';
-  dias.forEach(function(){html+='<td></td>';});
-  html+='<td style="padding:12px 8px;text-align:right;font-family:monospace;color:'+(tot_real>=tot_patron?'var(--grn)':'var(--mut)')+'">'+((tot_real-tot_patron)>=0?'+':'')+fmtKg(tot_real-tot_patron)+'</td>';
-  html+='</tr>';
-  html+='</tbody></table></div>';
-
-  html+='<p style="font-size:11px;color:var(--mut);margin-top:16px">Balance positivo = se empacó más de lo programado (stock de semana anterior). Balance negativo = quedan lotes pendientes de empacar.</p>';
-
-  document.getElementById('sem-tabla').innerHTML=html;
-}
-
-// Activar cuando se abra la pestaña
-document.addEventListener('DOMContentLoaded',function(){
-  var semBtn=document.querySelector('[onclick*=\'sem\']');
-  if(semBtn) semBtn.addEventListener('click',function(){setTimeout(buildSemana,50);});
-});
-
-</script>
-</body>
-</html>// ── REPORTE SEMANAL ─────────────────────────────────────────────────────────────
-var CONSOLIDADOS={
-  'MANGUERA KILO':['MANGUERA KILO LV','MANGUERA KILO SV'],
-  'MANGUERA DELI':['MANGUERA DELI LV','MANGUERA DELI SV'],
-  'SCHON PROMOCION':['SCHON PROMOCION LV','SCHON PROMOCION SV']
-};
-// Orden de filas: nombre consolidado sin sede, o "FAMILIA SEDE" para individuales
-var FAM_ORDEN=[
-  {label:'MANGUERA KILO (LV+SV)', tipo:'cons', fam:'MANGUERA KILO'},
-  {label:'MANGUERA DELI (LV+SV)', tipo:'cons', fam:'MANGUERA DELI'},
-  {label:'SCHON PROMOCION (LV+SV)', tipo:'cons', fam:'SCHON PROMOCION'},
+var SEM_FILAS=[
+  {label:'MANGUERA KILO (LV+SV)',  tipo:'cons', fam:'MANGUERA KILO'},
+  {label:'MANGUERA DELI (LV+SV)',  tipo:'cons', fam:'MANGUERA DELI'},
+  {label:'SCHON PROMOCION (LV+SV)',tipo:'cons', fam:'SCHON PROMOCION'},
   {label:'CHORIZO · LV',           tipo:'ind',  key:'CHORIZO LV'},
   {label:'SALCHICHA · LV',         tipo:'ind',  key:'SALCHICHA LV'},
   {label:'MORTADELA · LV',         tipo:'ind',  key:'MORTADELA LV'},
@@ -1014,146 +849,97 @@ var FAM_ORDEN=[
   {label:'SCHON ECONOMICO · SV',   tipo:'ind',  key:'SCHON ECONOMICO SV'},
   {label:'SEVILLANO · SV',         tipo:'ind',  key:'SEVILLANO SV'}
 ];
-
-function getMonday(d){
-  var dt=new Date(d); var day=dt.getDay();
-  var diff=dt.getDate()-(day===0?6:day-1);
-  dt.setDate(diff); return dt.toISOString().slice(0,10);
-}
-function addDays(d,n){var dt=new Date(d); dt.setDate(dt.getDate()+n); return dt.toISOString().slice(0,10);}
-function fmtDate(d){var p=d.split('-'); return p[2]+'/'+p[1];}
-function fmtKg(v){if(v===0)return '—'; return (v<0?'-':'')+Math.abs(v).toLocaleString('es-CO',{minimumFractionDigits:1,maximumFractionDigits:1})+' kg';}
+function semGetMon(d){var dt=new Date(d),day=dt.getDay(),diff=dt.getDate()-(day===0?6:day-1);dt.setDate(diff);return dt.toISOString().slice(0,10);}
+function semAddDays(d,n){var dt=new Date(d);dt.setDate(dt.getDate()+n);return dt.toISOString().slice(0,10);}
+function semFmtD(d){var p=d.split('-');return p[2]+'/'+p[1];}
+function semFmtKg(v){if(v===0)return '—';return(v<0?'-':'')+Math.abs(v).toLocaleString('es-CO',{minimumFractionDigits:1,maximumFractionDigits:1})+' kg';}
 
 function buildSemana(){
   var DATA=JSON.parse(document.getElementById('dash-data').textContent);
-  var recs=DATA.records;
-  if(!recs||!recs.length) return;
-
-  // Agrupar por semana
+  var recs=DATA.records; if(!recs||!recs.length)return;
   var semanas={};
-  recs.forEach(function(r){
-    var mon=getMonday(r.fecha);
-    if(!semanas[mon]) semanas[mon]=[];
-    semanas[mon].push(r);
-  });
+  recs.forEach(function(r){var m=semGetMon(r.fecha);if(!semanas[m])semanas[m]=[];semanas[m].push(r);});
   var semList=Object.keys(semanas).sort().reverse();
-
-  // Selector de semana
-  var sel=document.getElementById('sem-selector');
-  sel.innerHTML='';
+  var sel=document.getElementById('sem-selector'); sel.innerHTML='';
   semList.slice(0,8).forEach(function(mon,i){
-    var sat=addDays(mon,5);
-    var btn=document.createElement('button');
+    var sat=semAddDays(mon,5),btn=document.createElement('button');
     btn.className='tab'+(i===0?' on':'');
-    btn.textContent=fmtDate(mon)+' – '+fmtDate(sat);
+    btn.textContent=semFmtD(mon)+' – '+semFmtD(sat);
     btn.onclick=(function(m){return function(){
       document.querySelectorAll('#sem-selector .tab').forEach(function(b){b.classList.remove('on');});
-      this.classList.add('on');
-      renderSemana(semanas[m],m);
+      this.classList.add('on'); renderSemana(semanas[m],m);
     };})(mon);
     sel.appendChild(btn);
   });
-
-  if(semList.length) renderSemana(semanas[semList[0]],semList[0]);
+  if(semList.length)renderSemana(semanas[semList[0]],semList[0]);
 }
 
 function renderSemana(recs,mon){
-  var dias=[0,1,2,3,4,5].map(function(n){return addDays(mon,n);});
-  var diaNoms=['Lun','Mar','Mié','Jue','Vie','Sáb'];
-
-  // Agregar por key = fam+' '+sede
+  var dias=[0,1,2,3,4,5].map(function(n){return semAddDays(mon,n);});
+  var diaN=['Lun','Mar','Mié','Jue','Vie','Sáb'];
   var data={};
   recs.forEach(function(r){
-    var key=r.fam+' '+r.sede;
-    if(!data[key]) data[key]={patron:0,real:0,dias:{}};
-    data[key].patron+=r.patron;
-    data[key].real+=r.real;
-    data[key].dias[r.fecha]=(data[key].dias[r.fecha]||0)+r.real;
+    var k=r.fam+' '+r.sede;
+    if(!data[k])data[k]={patron:0,real:0,dias:{}};
+    data[k].patron+=r.patron; data[k].real+=r.real;
+    data[k].dias[r.fecha]=(data[k].dias[r.fecha]||0)+r.real;
   });
-
-  // Construir filas según FAM_ORDEN
   var filas=[];
-  FAM_ORDEN.forEach(function(def){
+  SEM_FILAS.forEach(function(def){
     var row={label:def.label,patron:0,real:0,dias:{},tipo:def.tipo};
     if(def.tipo==='cons'){
-      var subs=CONSOLIDADOS[def.fam]||[];
-      subs.forEach(function(k){
-        if(data[k]){
-          row.patron+=data[k].patron;
-          row.real+=data[k].real;
-          Object.keys(data[k].dias).forEach(function(d){
-            row.dias[d]=(row.dias[d]||0)+data[k].dias[d];
-          });
-        }
+      (CONSOLIDADOS[def.fam]||[]).forEach(function(k){
+        if(data[k]){row.patron+=data[k].patron;row.real+=data[k].real;
+          Object.keys(data[k].dias).forEach(function(d){row.dias[d]=(row.dias[d]||0)+data[k].dias[d];});}
       });
     } else {
-      if(data[def.key]){
-        row.patron=data[def.key].patron;
-        row.real=data[def.key].real;
-        row.dias=data[def.key].dias;
-      }
+      if(data[def.key]){row.patron=data[def.key].patron;row.real=data[def.key].real;row.dias=data[def.key].dias;}
     }
-    if(row.patron>0||row.real>0) filas.push(row);
+    if(row.patron>0||row.real>0)filas.push(row);
   });
 
-  // Renderizar tabla
-  var html='<div style="overflow-x:auto">';
-  html+='<table style="width:100%;border-collapse:collapse;font-size:13px">';
-  html+='<thead><tr>';
-  html+='<th style="text-align:left;padding:10px 12px;border-bottom:2px solid var(--brd);color:var(--mut);font-size:11px;letter-spacing:1px;white-space:nowrap">Producto</th>';
-  html+='<th style="padding:10px 8px;border-bottom:2px solid var(--brd);color:var(--mut);font-size:11px;text-align:right;white-space:nowrap">Patrón</th>';
-  html+='<th style="padding:10px 8px;border-bottom:2px solid var(--brd);color:var(--mut);font-size:11px;text-align:right;white-space:nowrap">Real empacado</th>';
-  html+='<th style="padding:10px 8px;border-bottom:2px solid var(--brd);color:var(--mut);font-size:11px;text-align:right">Merma%</th>';
-  dias.forEach(function(d,i){
-    html+='<th style="padding:8px 6px;border-bottom:2px solid var(--brd);color:var(--mut);font-size:11px;text-align:right;white-space:nowrap">'+diaNoms[i]+'<br><span style="font-size:10px;font-weight:400">'+fmtDate(d)+'</span></th>';
-  });
-  html+='<th style="padding:10px 8px;border-bottom:2px solid var(--brd);color:var(--mut);font-size:11px;text-align:right">Balance</th>';
-  html+='</tr></thead><tbody>';
+  var h='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr>';
+  h+='<th style="text-align:left;padding:10px 12px;border-bottom:2px solid var(--brd);color:var(--mut);font-size:11px;white-space:nowrap">Producto</th>';
+  h+='<th style="padding:10px 8px;border-bottom:2px solid var(--brd);color:var(--mut);font-size:11px;text-align:right">Patrón</th>';
+  h+='<th style="padding:10px 8px;border-bottom:2px solid var(--brd);color:var(--mut);font-size:11px;text-align:right">Real</th>';
+  h+='<th style="padding:10px 8px;border-bottom:2px solid var(--brd);color:var(--mut);font-size:11px;text-align:right">Merma%</th>';
+  dias.forEach(function(d,i){h+='<th style="padding:8px 6px;border-bottom:2px solid var(--brd);color:var(--mut);font-size:11px;text-align:right">'+diaN[i]+'<br><span style="font-size:10px;font-weight:400">'+semFmtD(d)+'</span></th>';});
+  h+='<th style="padding:10px 8px;border-bottom:2px solid var(--brd);color:var(--mut);font-size:11px;text-align:right">Balance</th></tr></thead><tbody>';
 
-  var tot_patron=0,tot_real=0;
-
+  var tP=0,tR=0;
   filas.forEach(function(row){
     var mr=row.patron>0?((row.patron-row.real)/row.patron*100):0;
     var bal=row.real-row.patron;
-    var mrCol=mr>2?'var(--yel)':(mr<-5?'var(--red)':'var(--grn)');
+    var mrc=mr>2?'var(--yel)':(mr<-5?'var(--red)':'var(--grn)');
     var sem=mr>2?'🟡':(mr>=-5?'🟢':'🔴');
-    var bgRow=row.tipo==='cons'?'rgba(200,169,110,.07)':'transparent';
-    tot_patron+=row.patron; tot_real+=row.real;
-
-    html+='<tr style="background:'+bgRow+';border-bottom:1px solid rgba(255,255,255,.04)">';
-    html+='<td style="padding:10px 12px;font-weight:'+(row.tipo==='cons'?'600':'400')+';white-space:nowrap">'+sem+' '+row.label+'</td>';
-    html+='<td style="padding:10px 8px;text-align:right;color:var(--mut);font-family:monospace;white-space:nowrap">'+fmtKg(row.patron)+'</td>';
-    html+='<td style="padding:10px 8px;text-align:right;font-family:monospace;font-weight:600;white-space:nowrap">'+fmtKg(row.real)+'</td>';
-    html+='<td style="padding:10px 8px;text-align:right;font-family:monospace;color:'+mrCol+'">'+(mr>0?'+':'')+mr.toFixed(1)+'%</td>';
-    dias.forEach(function(d){
-      var v=row.dias[d]||0;
-      html+='<td style="padding:10px 6px;text-align:right;font-family:monospace;font-size:12px;color:'+(v>0?'var(--text)':'var(--mut)')+'">'+( v>0?fmtKg(v):'—')+'</td>';
-    });
-    var balCol=bal>=0?'var(--grn)':'var(--mut)';
-    html+='<td style="padding:10px 8px;text-align:right;font-family:monospace;white-space:nowrap;color:'+balCol+'">'+(bal>=0?'+':'')+fmtKg(bal)+'</td>';
-    html+='</tr>';
+    var bg=row.tipo==='cons'?'rgba(200,169,110,.07)':'transparent';
+    tP+=row.patron; tR+=row.real;
+    h+='<tr style="background:'+bg+';border-bottom:1px solid rgba(255,255,255,.04)">';
+    h+='<td style="padding:10px 12px;font-weight:'+(row.tipo==='cons'?'600':'400')+';white-space:nowrap">'+sem+' '+row.label+'</td>';
+    h+='<td style="padding:10px 8px;text-align:right;color:var(--mut);font-family:monospace;white-space:nowrap">'+semFmtKg(row.patron)+'</td>';
+    h+='<td style="padding:10px 8px;text-align:right;font-family:monospace;font-weight:600;white-space:nowrap">'+semFmtKg(row.real)+'</td>';
+    h+='<td style="padding:10px 8px;text-align:right;font-family:monospace;color:'+mrc+'">'+(mr>0?'+':'')+mr.toFixed(1)+'%</td>';
+    dias.forEach(function(d){var v=row.dias[d]||0;h+='<td style="padding:10px 6px;text-align:right;font-family:monospace;font-size:12px;color:'+(v>0?'var(--text)':'var(--mut)')+'">'+( v>0?semFmtKg(v):'—')+'</td>';});
+    var bc=bal>=0?'var(--grn)':'var(--mut)';
+    h+='<td style="padding:10px 8px;text-align:right;font-family:monospace;white-space:nowrap;color:'+bc+'">'+(bal>=0?'+':'')+semFmtKg(bal)+'</td></tr>';
   });
-
-  // Fila total
-  var tot_mr=tot_patron>0?((tot_patron-tot_real)/tot_patron*100):0;
-  html+='<tr style="border-top:2px solid var(--brd);font-weight:700">';
-  html+='<td style="padding:12px 12px">TOTAL SEMANA</td>';
-  html+='<td style="padding:12px 8px;text-align:right;font-family:monospace">'+fmtKg(tot_patron)+'</td>';
-  html+='<td style="padding:12px 8px;text-align:right;font-family:monospace">'+fmtKg(tot_real)+'</td>';
-  html+='<td style="padding:12px 8px;text-align:right;font-family:monospace;color:'+(tot_mr>2?'var(--yel)':'var(--grn)')+'">'+tot_mr.toFixed(1)+'%</td>';
-  dias.forEach(function(){html+='<td></td>';});
-  var tot_bal=tot_real-tot_patron;
-  html+='<td style="padding:12px 8px;text-align:right;font-family:monospace;color:'+(tot_bal>=0?'var(--grn)':'var(--mut)')+'">'+( tot_bal>=0?'+':'')+fmtKg(tot_bal)+'</td>';
-  html+='</tr>';
-  html+='</tbody></table></div>';
-  html+='<p style="font-size:11px;color:var(--mut);margin-top:14px">🟢 merma dentro del estándar · 🟡 merma sobre el estándar · 🔴 supera teórico · Balance + = se empacó más del patrón (stock anterior) · Balance − = lotes pendientes de empacar</p>';
-
-  document.getElementById('sem-tabla').innerHTML=html;
+  var tMr=tP>0?((tP-tR)/tP*100):0, tBal=tR-tP;
+  h+='<tr style="border-top:2px solid var(--brd);font-weight:700">';
+  h+='<td style="padding:12px 12px">TOTAL SEMANA</td>';
+  h+='<td style="padding:12px 8px;text-align:right;font-family:monospace">'+semFmtKg(tP)+'</td>';
+  h+='<td style="padding:12px 8px;text-align:right;font-family:monospace">'+semFmtKg(tR)+'</td>';
+  h+='<td style="padding:12px 8px;text-align:right;font-family:monospace;color:'+(tMr>2?'var(--yel)':'var(--grn)')+'">'+tMr.toFixed(1)+'%</td>';
+  dias.forEach(function(){h+='<td></td>';});
+  h+='<td style="padding:12px 8px;text-align:right;font-family:monospace;color:'+(tBal>=0?'var(--grn)':'var(--mut)')+'">'+( tBal>=0?'+':'')+semFmtKg(tBal)+'</td></tr>';
+  h+='</tbody></table></div>';
+  h+='<p style="font-size:11px;color:var(--mut);margin-top:14px">🟢 dentro del estándar · 🟡 merma sobre estándar · 🔴 supera teórico · Balance + = stock anterior incluido · Balance − = pendiente de empacar</p>';
+  document.getElementById('sem-tabla').innerHTML=h;
 }
 
 document.addEventListener('DOMContentLoaded',function(){
-  var semBtn=document.querySelector('[onclick*=\'sem\']');
-  if(semBtn) semBtn.addEventListener('click',function(){setTimeout(buildSemana,50);});
+  var sb=document.querySelector("[onclick*=\'sem\']");
+  if(sb)sb.addEventListener('click',function(){setTimeout(buildSemana,50);});
+});
 });});
 
 </script>
